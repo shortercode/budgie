@@ -2,7 +2,12 @@ package db
 
 import (
 	"database/sql"
+	"errors"
+	"fmt"
+	"strings"
 	"time"
+
+	"budgie/internal/model"
 )
 
 // AccountBalance holds an account's name, type, and computed balance.
@@ -27,6 +32,33 @@ type MonthlySummary struct {
 	Month    time.Month
 	Income   int64
 	Expenses int64
+}
+
+var validAccountTypes = map[model.AccountType]bool{
+	model.AccountTypeCurrent: true,
+	model.AccountTypeSavings: true,
+	model.AccountTypeCredit:  true,
+	model.AccountTypeCash:    true,
+}
+
+// InsertAccount creates a new account and returns its ID.
+func InsertAccount(db *sql.DB, name string, accountType model.AccountType) (int64, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return 0, errors.New("account name must not be empty")
+	}
+	if !validAccountTypes[accountType] {
+		return 0, fmt.Errorf("invalid account type: %q", accountType)
+	}
+
+	result, err := db.Exec(
+		`INSERT INTO accounts (name, type) VALUES (?, ?)`,
+		name, string(accountType),
+	)
+	if err != nil {
+		return 0, fmt.Errorf("inserting account: %w", err)
+	}
+	return result.LastInsertId()
 }
 
 // AccountBalances returns every account with its computed balance.
