@@ -58,8 +58,6 @@ func migrate(db *sql.DB) error {
 			ON transactions(account_id);
 		CREATE INDEX IF NOT EXISTS idx_transactions_date
 			ON transactions(date);
-
-		UPDATE accounts SET type = 'current' WHERE type = 'checking';
 	`)
 	return err
 }

@@ -56,6 +56,9 @@ func InsertAccount(db *sql.DB, name string, accountType model.AccountType) (int6
 		name, string(accountType),
 	)
 	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			return 0, fmt.Errorf("an account named %q already exists", name)
+		}
 		return 0, fmt.Errorf("inserting account: %w", err)
 	}
 	return result.LastInsertId()
