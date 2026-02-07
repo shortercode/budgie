@@ -62,7 +62,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.summary = newSummaryModel(m.db)
 		return m, m.summary.Init()
 
-	case AccountFormCancelled, transactionFormCancelledMsg:
+	case accountFormCancelledMsg, transactionFormCancelledMsg:
 		m.active = viewSummary
 		return m, nil
 	}
