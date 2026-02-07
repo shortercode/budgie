@@ -12,6 +12,7 @@ type view int
 const (
 	viewSummary view = iota
 	viewAccountForm
+	viewTransactionForm
 )
 
 var (
@@ -24,12 +25,13 @@ var (
 )
 
 type Model struct {
-	db          *sql.DB
-	width       int
-	height      int
-	active      view
-	summary     summaryModel
-	accountForm accountFormModel
+	db              *sql.DB
+	width           int
+	height          int
+	active          view
+	summary         summaryModel
+	accountForm     accountFormModel
+	transactionForm transactionFormModel
 }
 
 func New(db *sql.DB) Model {
@@ -55,12 +57,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
-	case accountInsertedMsg:
+	case accountInsertedMsg, transactionInsertedMsg:
 		m.active = viewSummary
 		m.summary = newSummaryModel(m.db)
 		return m, m.summary.Init()
 
-	case AccountFormCancelled:
+	case AccountFormCancelled, transactionFormCancelledMsg:
 		m.active = viewSummary
 		return m, nil
 	}
@@ -70,6 +72,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateSummary(msg)
 	case viewAccountForm:
 		return m.updateAccountForm(msg)
+	case viewTransactionForm:
+		return m.updateTransactionForm(msg)
 	}
 
 	return m, nil
@@ -84,6 +88,10 @@ func (m Model) updateSummary(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.active = viewAccountForm
 			m.accountForm = newAccountFormModel(m.db)
 			return m, m.accountForm.Init()
+		case "t":
+			m.active = viewTransactionForm
+			m.transactionForm = newTransactionFormModel(m.db)
+			return m, m.transactionForm.Init()
 		}
 	}
 
@@ -98,6 +106,12 @@ func (m Model) updateAccountForm(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m Model) updateTransactionForm(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	m.transactionForm, cmd = m.transactionForm.Update(msg)
+	return m, cmd
+}
+
 func (m Model) View() string {
 	title := titleStyle.Render("budgie")
 
@@ -107,9 +121,12 @@ func (m Model) View() string {
 	switch m.active {
 	case viewSummary:
 		content = m.summary.View()
-		help = helpStyle.Render("a: add account  q: quit")
+		help = helpStyle.Render("a: add account  t: add transaction  q: quit")
 	case viewAccountForm:
 		content = m.accountForm.View()
+		help = ""
+	case viewTransactionForm:
+		content = m.transactionForm.View()
 		help = ""
 	}
 

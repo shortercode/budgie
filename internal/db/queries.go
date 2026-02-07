@@ -113,6 +113,37 @@ func ListAccounts(db *sql.DB) ([]model.Account, error) {
 	return out, rows.Err()
 }
 
+// InsertTransaction creates a new transaction and returns its ID.
+func InsertTransaction(db *sql.DB, accountID int64, date time.Time, description string, amount int64, category string) (int64, error) {
+	result, err := db.Exec(
+		`INSERT INTO transactions (account_id, date, description, amount, category) VALUES (?, ?, ?, ?, ?)`,
+		accountID, date.Format("2006-01-02"), description, amount, category,
+	)
+	if err != nil {
+		if strings.Contains(err.Error(), "FOREIGN KEY constraint failed") {
+			return 0, errors.New("account does not exist")
+		}
+		return 0, fmt.Errorf("inserting transaction: %w", err)
+	}
+	return result.LastInsertId()
+}
+
+// DeleteTransaction removes a transaction by ID. Returns an error if it doesn't exist.
+func DeleteTransaction(db *sql.DB, transactionID int64) error {
+	result, err := db.Exec(`DELETE FROM transactions WHERE id = ?`, transactionID)
+	if err != nil {
+		return fmt.Errorf("deleting transaction: %w", err)
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("checking rows affected: %w", err)
+	}
+	if n == 0 {
+		return fmt.Errorf("transaction %d not found", transactionID)
+	}
+	return nil
+}
+
 // AccountBalances returns every account with its computed balance.
 func AccountBalances(db *sql.DB) ([]AccountBalance, error) {
 	rows, err := db.Query(`
