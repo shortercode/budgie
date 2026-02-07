@@ -64,7 +64,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.summary = newSummaryModel(m.db)
 		return m, m.summary.Init()
 
-	case accountFormCancelledMsg, transactionFormCancelledMsg, transactionListCancelledMsg:
+	case transactionUpdatedMsg:
+		m.active = viewTransactionList
+		m.transactionList = newTransactionListModel(m.db)
+		return m, m.transactionList.Init()
+
+	case transactionEditMsg:
+		m.active = viewTransactionForm
+		m.transactionForm = newTransactionFormModelForEdit(m.db, msg.row)
+		return m, m.transactionForm.Init()
+
+	case transactionListCancelledMsg:
+		m.active = viewSummary
+		m.summary = newSummaryModel(m.db)
+		return m, m.summary.Init()
+
+	case accountFormCancelledMsg, transactionFormCancelledMsg:
 		m.active = viewSummary
 		return m, nil
 	}
@@ -144,7 +159,7 @@ func (m Model) View() string {
 		help = ""
 	case viewTransactionList:
 		content = m.transactionList.View()
-		help = helpStyle.Render("esc: back  ↑/↓: scroll  ←/→: page")
+		help = helpStyle.Render("e/enter: edit  esc: back  ↑/↓: scroll  ←/→: page")
 	}
 
 	return title + "\n\n" + content + "\n\n" + help + "\n"

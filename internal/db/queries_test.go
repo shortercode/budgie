@@ -271,6 +271,72 @@ func TestDeleteTransaction_NotFound(t *testing.T) {
 	}
 }
 
+// --- UpdateTransaction tests ---
+
+func TestUpdateTransaction_Valid(t *testing.T) {
+	db := testDB(t)
+	acctID := insertTestAccount(t, db, "Main", "current")
+	acctID2 := insertTestAccount(t, db, "Savings", "savings")
+	insertTestTransaction(t, db, acctID, "2026-01-15", "Salary", 150000)
+
+	// Get the transaction ID
+	var txID int64
+	db.QueryRow(`SELECT id FROM transactions LIMIT 1`).Scan(&txID)
+
+	newDate := time.Date(2026, 2, 20, 0, 0, 0, 0, time.UTC)
+	err := UpdateTransaction(db, txID, acctID2, newDate, "Updated Salary", 200000, "income")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify via AllTransactions
+	txs, _, err := AllTransactions(db, 0, 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(txs) != 1 {
+		t.Fatalf("expected 1 transaction, got %d", len(txs))
+	}
+	tx := txs[0]
+	if tx.Account != "Savings" {
+		t.Errorf("expected account 'Savings', got %q", tx.Account)
+	}
+	if tx.Description != "Updated Salary" {
+		t.Errorf("expected description 'Updated Salary', got %q", tx.Description)
+	}
+	if tx.Amount != 200000 {
+		t.Errorf("expected amount 200000, got %d", tx.Amount)
+	}
+	if tx.Category != "income" {
+		t.Errorf("expected category 'income', got %q", tx.Category)
+	}
+	if tx.Date != newDate {
+		t.Errorf("expected date %v, got %v", newDate, tx.Date)
+	}
+}
+
+func TestUpdateTransaction_NotFound(t *testing.T) {
+	db := testDB(t)
+	err := UpdateTransaction(db, 9999, 1, time.Now(), "Test", 1000, "")
+	if err == nil {
+		t.Fatal("expected error for non-existent transaction")
+	}
+}
+
+func TestUpdateTransaction_InvalidAccount(t *testing.T) {
+	db := testDB(t)
+	acctID := insertTestAccount(t, db, "Main", "current")
+	insertTestTransaction(t, db, acctID, "2026-01-15", "Salary", 150000)
+
+	var txID int64
+	db.QueryRow(`SELECT id FROM transactions LIMIT 1`).Scan(&txID)
+
+	err := UpdateTransaction(db, txID, 9999, time.Now(), "Test", 1000, "")
+	if err == nil {
+		t.Fatal("expected error for non-existent account")
+	}
+}
+
 // --- AccountBalances tests ---
 
 func TestAccountBalances_Empty(t *testing.T) {

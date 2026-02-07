@@ -21,9 +21,14 @@ type transactionListDataMsg struct {
 
 type transactionListCancelledMsg struct{}
 
+type transactionEditMsg struct{ row db.TransactionRow }
+
+type transactionUpdatedMsg struct{}
+
 type transactionListModel struct {
 	database *sql.DB
 	table    table.Model
+	rows     []db.TransactionRow
 	loaded   bool
 	err      error
 	page     int
@@ -90,9 +95,10 @@ func (m transactionListModel) Update(msg tea.Msg) (transactionListModel, tea.Cmd
 			return m, nil
 		}
 		m.total = msg.total
-		rows := make([]table.Row, len(msg.rows))
+		m.rows = msg.rows
+		tableRows := make([]table.Row, len(msg.rows))
 		for i, tx := range msg.rows {
-			rows[i] = table.Row{
+			tableRows[i] = table.Row{
 				formatDate(tx.Date),
 				tx.Account,
 				tx.Description,
@@ -100,7 +106,7 @@ func (m transactionListModel) Update(msg tea.Msg) (transactionListModel, tea.Cmd
 				formatSignedPence(tx.Amount),
 			}
 		}
-		m.table.SetRows(rows)
+		m.table.SetRows(tableRows)
 		m.loaded = true
 		return m, nil
 
@@ -108,6 +114,15 @@ func (m transactionListModel) Update(msg tea.Msg) (transactionListModel, tea.Cmd
 		switch msg.String() {
 		case "esc":
 			return m, func() tea.Msg { return transactionListCancelledMsg{} }
+		case "e", "enter":
+			if m.loaded && len(m.rows) > 0 {
+				idx := m.table.Cursor()
+				if idx >= 0 && idx < len(m.rows) {
+					row := m.rows[idx]
+					return m, func() tea.Msg { return transactionEditMsg{row: row} }
+				}
+			}
+			return m, nil
 		case "right", "n":
 			if m.page < m.totalPages()-1 {
 				m.page++

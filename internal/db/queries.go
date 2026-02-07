@@ -29,6 +29,7 @@ type RecentTx struct {
 // TransactionRow holds a single transaction joined with its account name.
 type TransactionRow struct {
 	ID          int64
+	AccountID   int64
 	Date        time.Time
 	Account     string
 	Description string
@@ -154,6 +155,28 @@ func DeleteTransaction(db *sql.DB, transactionID int64) error {
 	return nil
 }
 
+// UpdateTransaction updates an existing transaction by ID.
+func UpdateTransaction(db *sql.DB, transactionID, accountID int64, date time.Time, description string, amount int64, category string) error {
+	result, err := db.Exec(
+		`UPDATE transactions SET account_id=?, date=?, description=?, amount=?, category=? WHERE id=?`,
+		accountID, date.Format("2006-01-02"), description, amount, category, transactionID,
+	)
+	if err != nil {
+		if strings.Contains(err.Error(), "FOREIGN KEY constraint failed") {
+			return fmt.Errorf("account does not exist")
+		}
+		return fmt.Errorf("updating transaction: %w", err)
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("checking rows affected: %w", err)
+	}
+	if n == 0 {
+		return fmt.Errorf("transaction %d not found", transactionID)
+	}
+	return nil
+}
+
 // AccountBalances returns every account with its computed balance.
 func AccountBalances(db *sql.DB) ([]AccountBalance, error) {
 	rows, err := db.Query(`
@@ -219,7 +242,7 @@ func AllTransactions(db *sql.DB, offset, limit int) ([]TransactionRow, int, erro
 	}
 
 	rows, err := db.Query(`
-		SELECT t.id, t.date, a.name, t.description, t.amount, t.category
+		SELECT t.id, t.account_id, t.date, a.name, t.description, t.amount, t.category
 		FROM transactions t
 		JOIN accounts a ON a.id = t.account_id
 		ORDER BY t.date DESC, t.id DESC
@@ -234,7 +257,7 @@ func AllTransactions(db *sql.DB, offset, limit int) ([]TransactionRow, int, erro
 	for rows.Next() {
 		var tx TransactionRow
 		var dateStr string
-		if err := rows.Scan(&tx.ID, &dateStr, &tx.Account, &tx.Description, &tx.Amount, &tx.Category); err != nil {
+		if err := rows.Scan(&tx.ID, &tx.AccountID, &dateStr, &tx.Account, &tx.Description, &tx.Amount, &tx.Category); err != nil {
 			return nil, 0, fmt.Errorf("scanning transaction: %w", err)
 		}
 		tx.Date, err = time.Parse("2006-01-02", dateStr)

@@ -51,19 +51,24 @@ const (
 	txIncome
 )
 
-// transactionFormModel is the bubbletea model for the add-transaction form.
+// transactionUpdateErrMsg is sent when the DB update fails.
+type transactionUpdateErrMsg struct{ err error }
+
+// transactionFormModel is the bubbletea model for the add/edit-transaction form.
 type transactionFormModel struct {
-	database     *sql.DB
-	accounts     []model.Account
-	accountIndex int
-	dateInput    textinput.Model
-	descInput    textinput.Model
-	amountInput  textinput.Model
-	catInput     textinput.Model
-	direction    txDirection
-	focused      txFormField
-	err          string
-	loading      bool
+	database      *sql.DB
+	accounts      []model.Account
+	accountIndex  int
+	editID        int64  // 0 = add mode, >0 = edit mode
+	editAccountID int64  // target account ID for edit mode (resolved after accounts load)
+	dateInput     textinput.Model
+	descInput     textinput.Model
+	amountInput   textinput.Model
+	catInput      textinput.Model
+	direction     txDirection
+	focused       txFormField
+	err           string
+	loading       bool
 }
 
 func newTransactionFormModel(database *sql.DB) transactionFormModel {
@@ -96,6 +101,51 @@ func newTransactionFormModel(database *sql.DB) transactionFormModel {
 	}
 }
 
+func newTransactionFormModelForEdit(database *sql.DB, tx db.TransactionRow) transactionFormModel {
+	dateIn := textinput.New()
+	dateIn.Placeholder = "DD/MM/YYYY"
+	dateIn.CharLimit = 10
+	dateIn.SetValue(tx.Date.Format("02/01/2006"))
+
+	descIn := textinput.New()
+	descIn.Placeholder = "Description"
+	descIn.CharLimit = 100
+	descIn.SetValue(tx.Description)
+
+	// Display absolute value for the amount
+	absAmount := tx.Amount
+	if absAmount < 0 {
+		absAmount = -absAmount
+	}
+	amountIn := textinput.New()
+	amountIn.Placeholder = "0.00"
+	amountIn.CharLimit = 15
+	amountIn.SetValue(fmt.Sprintf("%.2f", float64(absAmount)/100))
+
+	catIn := textinput.New()
+	catIn.Placeholder = "Category"
+	catIn.CharLimit = 50
+	catIn.SetValue(tx.Category)
+
+	dir := txExpense
+	if tx.Amount > 0 {
+		dir = txIncome
+	}
+
+	return transactionFormModel{
+		database:      database,
+		editID:        tx.ID,
+		editAccountID: tx.AccountID,
+		dateInput:     dateIn,
+		descInput:     descIn,
+		amountInput:   amountIn,
+		catInput:      catIn,
+		direction:     dir,
+		focused:       txFieldAccount,
+		loading:       true,
+	}
+}
+
 func (m transactionFormModel) Init() tea.Cmd {
 	database := m.database
 	return func() tea.Msg {
@@ -117,6 +167,19 @@ func (m transactionFormModel) Update(msg tea.Msg) (transactionFormModel, tea.Cmd
 			return m, nil
 		}
 		m.accounts = msg.accounts
+		// In edit mode, select the account matching editAccountID
+		if m.editID > 0 {
+			for i, a := range m.accounts {
+				if a.ID == m.editAccountID {
+					m.accountIndex = i
+					break
+				}
+			}
+		}
+		return m, nil
+
+	case transactionUpdateErrMsg:
+		m.err = msg.err.Error()
 		return m, nil
 
 	case transactionInsertErrMsg:
@@ -250,6 +313,18 @@ func (m transactionFormModel) submit() (transactionFormModel, tea.Cmd) {
 	category := strings.TrimSpace(m.catInput.Value())
 	database := m.database
 
+	if m.editID > 0 {
+		editID := m.editID
+		cmd := func() tea.Msg {
+			err := db.UpdateTransaction(database, editID, accountID, date, description, amountPence, category)
+			if err != nil {
+				return transactionUpdateErrMsg{err: err}
+			}
+			return transactionUpdatedMsg{}
+		}
+		return m, cmd
+	}
+
 	cmd := func() tea.Msg {
 		_, err := db.InsertTransaction(database, accountID, date, description, amountPence, category)
 		if err != nil {
@@ -263,7 +338,11 @@ func (m transactionFormModel) submit() (transactionFormModel, tea.Cmd) {
 func (m transactionFormModel) View() string {
 	var b strings.Builder
 
-	b.WriteString(sectionTitle.Render("Add Transaction"))
+	if m.editID > 0 {
+		b.WriteString(sectionTitle.Render("Edit Transaction"))
+	} else {
+		b.WriteString(sectionTitle.Render("Add Transaction"))
+	}
 	b.WriteString("\n\n")
 
 	if m.loading {
@@ -308,10 +387,14 @@ func (m transactionFormModel) View() string {
 
 	// Submit
 	b.WriteString("\n")
+	submitLabel := "Add Transaction"
+	if m.editID > 0 {
+		submitLabel = "Save"
+	}
 	if m.focused == txFieldSubmit {
-		b.WriteString(fmt.Sprintf("  %s", formActiveButton.Render("Add Transaction")))
+		b.WriteString(fmt.Sprintf("  %s", formActiveButton.Render(submitLabel)))
 	} else {
-		b.WriteString(fmt.Sprintf("  %s", formButtonStyle.Render("Add Transaction")))
+		b.WriteString(fmt.Sprintf("  %s", formButtonStyle.Render(submitLabel)))
 	}
 	b.WriteString("\n")
 
