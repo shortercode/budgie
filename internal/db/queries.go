@@ -26,6 +26,16 @@ type RecentTx struct {
 	Amount      int64
 }
 
+// TransactionRow holds a single transaction joined with its account name.
+type TransactionRow struct {
+	ID          int64
+	Date        time.Time
+	Account     string
+	Description string
+	Amount      int64
+	Category    string
+}
+
 // MonthlySummary holds income and expense totals for a given month.
 type MonthlySummary struct {
 	Year     int
@@ -197,6 +207,46 @@ func RecentTransactions(db *sql.DB, limit int) ([]RecentTx, error) {
 		out = append(out, tx)
 	}
 	return out, rows.Err()
+}
+
+// AllTransactions returns a page of transactions with account names, ordered
+// by date descending then ID descending. It also returns the total count.
+func AllTransactions(db *sql.DB, offset, limit int) ([]TransactionRow, int, error) {
+	var total int
+	err := db.QueryRow(`SELECT COUNT(*) FROM transactions`).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("counting transactions: %w", err)
+	}
+
+	rows, err := db.Query(`
+		SELECT t.id, t.date, a.name, t.description, t.amount, t.category
+		FROM transactions t
+		JOIN accounts a ON a.id = t.account_id
+		ORDER BY t.date DESC, t.id DESC
+		LIMIT ? OFFSET ?
+	`, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("querying transactions: %w", err)
+	}
+	defer rows.Close()
+
+	var out []TransactionRow
+	for rows.Next() {
+		var tx TransactionRow
+		var dateStr string
+		if err := rows.Scan(&tx.ID, &dateStr, &tx.Account, &tx.Description, &tx.Amount, &tx.Category); err != nil {
+			return nil, 0, fmt.Errorf("scanning transaction: %w", err)
+		}
+		tx.Date, err = time.Parse("2006-01-02", dateStr)
+		if err != nil {
+			return nil, 0, fmt.Errorf("parsing transaction date: %w", err)
+		}
+		out = append(out, tx)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("iterating transactions: %w", err)
+	}
+	return out, total, nil
 }
 
 // MonthSummary returns income and expense totals for the given year/month.

@@ -386,6 +386,125 @@ func TestRecentTransactions_IncludesAccountName(t *testing.T) {
 	}
 }
 
+// --- AllTransactions tests ---
+
+func TestAllTransactions_Empty(t *testing.T) {
+	db := testDB(t)
+	txs, total, err := AllTransactions(db, 0, 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(txs) != 0 {
+		t.Fatalf("expected 0 transactions, got %d", len(txs))
+	}
+	if total != 0 {
+		t.Fatalf("expected total 0, got %d", total)
+	}
+}
+
+func TestAllTransactions_ReverseChronological(t *testing.T) {
+	db := testDB(t)
+	id := insertTestAccount(t, db, "Main", "current")
+	insertTestTransaction(t, db, id, "2026-01-10", "First", 1000)
+	insertTestTransaction(t, db, id, "2026-01-20", "Second", 2000)
+	insertTestTransaction(t, db, id, "2026-01-15", "Middle", 3000)
+
+	txs, total, err := AllTransactions(db, 0, 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if total != 3 {
+		t.Fatalf("expected total 3, got %d", total)
+	}
+	if len(txs) != 3 {
+		t.Fatalf("expected 3 transactions, got %d", len(txs))
+	}
+	if txs[0].Description != "Second" || txs[1].Description != "Middle" || txs[2].Description != "First" {
+		t.Errorf("transactions not in reverse chronological order: %v, %v, %v",
+			txs[0].Description, txs[1].Description, txs[2].Description)
+	}
+}
+
+func TestAllTransactions_Pagination(t *testing.T) {
+	db := testDB(t)
+	id := insertTestAccount(t, db, "Main", "current")
+	insertTestTransaction(t, db, id, "2026-01-10", "One", 1000)
+	insertTestTransaction(t, db, id, "2026-01-11", "Two", 2000)
+	insertTestTransaction(t, db, id, "2026-01-12", "Three", 3000)
+	insertTestTransaction(t, db, id, "2026-01-13", "Four", 4000)
+	insertTestTransaction(t, db, id, "2026-01-14", "Five", 5000)
+
+	// First page
+	txs, total, err := AllTransactions(db, 0, 2)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if total != 5 {
+		t.Fatalf("expected total 5, got %d", total)
+	}
+	if len(txs) != 2 {
+		t.Fatalf("expected 2 transactions, got %d", len(txs))
+	}
+	if txs[0].Description != "Five" || txs[1].Description != "Four" {
+		t.Errorf("unexpected first page: %v, %v", txs[0].Description, txs[1].Description)
+	}
+
+	// Second page
+	txs, total, err = AllTransactions(db, 2, 2)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if total != 5 {
+		t.Fatalf("expected total 5, got %d", total)
+	}
+	if len(txs) != 2 {
+		t.Fatalf("expected 2 transactions, got %d", len(txs))
+	}
+	if txs[0].Description != "Three" || txs[1].Description != "Two" {
+		t.Errorf("unexpected second page: %v, %v", txs[0].Description, txs[1].Description)
+	}
+}
+
+func TestAllTransactions_IncludesAccountName(t *testing.T) {
+	db := testDB(t)
+	id := insertTestAccount(t, db, "Savings Pot", "savings")
+	insertTestTransaction(t, db, id, "2026-01-10", "Interest", 500)
+
+	txs, _, err := AllTransactions(db, 0, 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(txs) != 1 {
+		t.Fatalf("expected 1 transaction, got %d", len(txs))
+	}
+	if txs[0].Account != "Savings Pot" {
+		t.Errorf("expected account 'Savings Pot', got %q", txs[0].Account)
+	}
+}
+
+func TestAllTransactions_IncludesCategory(t *testing.T) {
+	db := testDB(t)
+	id := insertTestAccount(t, db, "Main", "current")
+	_, err := db.Exec(
+		`INSERT INTO transactions (account_id, date, description, amount, category) VALUES (?, ?, ?, ?, ?)`,
+		id, "2026-01-10", "Salary", 200000, "income",
+	)
+	if err != nil {
+		t.Fatalf("inserting test transaction: %v", err)
+	}
+
+	txs, _, err := AllTransactions(db, 0, 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(txs) != 1 {
+		t.Fatalf("expected 1 transaction, got %d", len(txs))
+	}
+	if txs[0].Category != "income" {
+		t.Errorf("expected category 'income', got %q", txs[0].Category)
+	}
+}
+
 // --- MonthSummary tests ---
 
 func TestMonthSummary_Empty(t *testing.T) {

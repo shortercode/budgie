@@ -13,6 +13,7 @@ const (
 	viewSummary view = iota
 	viewAccountForm
 	viewTransactionForm
+	viewTransactionList
 )
 
 var (
@@ -32,6 +33,7 @@ type Model struct {
 	summary         summaryModel
 	accountForm     accountFormModel
 	transactionForm transactionFormModel
+	transactionList transactionListModel
 }
 
 func New(db *sql.DB) Model {
@@ -62,7 +64,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.summary = newSummaryModel(m.db)
 		return m, m.summary.Init()
 
-	case accountFormCancelledMsg, transactionFormCancelledMsg:
+	case accountFormCancelledMsg, transactionFormCancelledMsg, transactionListCancelledMsg:
 		m.active = viewSummary
 		return m, nil
 	}
@@ -74,6 +76,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateAccountForm(msg)
 	case viewTransactionForm:
 		return m.updateTransactionForm(msg)
+	case viewTransactionList:
+		return m.updateTransactionList(msg)
 	}
 
 	return m, nil
@@ -92,6 +96,10 @@ func (m Model) updateSummary(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.active = viewTransactionForm
 			m.transactionForm = newTransactionFormModel(m.db)
 			return m, m.transactionForm.Init()
+		case "l":
+			m.active = viewTransactionList
+			m.transactionList = newTransactionListModel(m.db)
+			return m, m.transactionList.Init()
 		}
 	}
 
@@ -112,6 +120,12 @@ func (m Model) updateTransactionForm(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m Model) updateTransactionList(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	m.transactionList, cmd = m.transactionList.Update(msg)
+	return m, cmd
+}
+
 func (m Model) View() string {
 	title := titleStyle.Render("budgie")
 
@@ -121,13 +135,16 @@ func (m Model) View() string {
 	switch m.active {
 	case viewSummary:
 		content = m.summary.View()
-		help = helpStyle.Render("a: add account  t: add transaction  q: quit")
+		help = helpStyle.Render("a: add account  t: add transaction  l: transactions  q: quit")
 	case viewAccountForm:
 		content = m.accountForm.View()
 		help = ""
 	case viewTransactionForm:
 		content = m.transactionForm.View()
 		help = ""
+	case viewTransactionList:
+		content = m.transactionList.View()
+		help = helpStyle.Render("esc: back  ↑/↓: scroll  ←/→: page")
 	}
 
 	return title + "\n\n" + content + "\n\n" + help + "\n"
