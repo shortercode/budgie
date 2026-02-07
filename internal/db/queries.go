@@ -61,6 +61,36 @@ func InsertAccount(db *sql.DB, name string, accountType model.AccountType) (int6
 	return result.LastInsertId()
 }
 
+// ErrAccountHasTransactions is returned when attempting to delete an account
+// that still has transactions.
+var ErrAccountHasTransactions = errors.New("account still has transactions")
+
+// DeleteAccount removes an account by ID. It returns an error if the account
+// has any transactions or if the account does not exist.
+func DeleteAccount(db *sql.DB, accountID int64) error {
+	var count int
+	err := db.QueryRow(`SELECT COUNT(*) FROM transactions WHERE account_id = ?`, accountID).Scan(&count)
+	if err != nil {
+		return fmt.Errorf("checking transactions: %w", err)
+	}
+	if count > 0 {
+		return ErrAccountHasTransactions
+	}
+
+	result, err := db.Exec(`DELETE FROM accounts WHERE id = ?`, accountID)
+	if err != nil {
+		return fmt.Errorf("deleting account: %w", err)
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("checking rows affected: %w", err)
+	}
+	if n == 0 {
+		return fmt.Errorf("account %d not found", accountID)
+	}
+	return nil
+}
+
 // AccountBalances returns every account with its computed balance.
 func AccountBalances(db *sql.DB) ([]AccountBalance, error) {
 	rows, err := db.Query(`
