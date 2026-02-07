@@ -272,6 +272,91 @@ func AllTransactions(db *sql.DB, offset, limit int) ([]TransactionRow, int, erro
 	return out, total, nil
 }
 
+// ImportTransaction holds the data needed to bulk-insert an imported transaction.
+type ImportTransaction struct {
+	AccountID     int64
+	Date          time.Time
+	Description   string
+	Amount        int64
+	Category      string
+	ExternalID    string
+	Notes         string
+	Type          string
+	LocalAmount   *int64
+	LocalCurrency string
+}
+
+// ExistingExternalIDs returns a set of all non-NULL external_id values.
+func ExistingExternalIDs(db *sql.DB) (map[string]bool, error) {
+	rows, err := db.Query(`SELECT external_id FROM transactions WHERE external_id IS NOT NULL`)
+	if err != nil {
+		return nil, fmt.Errorf("querying external IDs: %w", err)
+	}
+	defer rows.Close()
+
+	out := make(map[string]bool)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scanning external ID: %w", err)
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
+}
+
+// BulkInsertTransactions inserts multiple transactions in a single DB transaction.
+// It returns the number of rows inserted.
+func BulkInsertTransactions(db *sql.DB, txns []ImportTransaction) (int, error) {
+	if len(txns) == 0 {
+		return 0, nil
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		return 0, fmt.Errorf("beginning transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.Prepare(`
+		INSERT INTO transactions (account_id, date, description, amount, category, external_id, notes, type, local_amount, local_currency)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`)
+	if err != nil {
+		return 0, fmt.Errorf("preparing insert: %w", err)
+	}
+	defer stmt.Close()
+
+	for _, t := range txns {
+		_, err := stmt.Exec(
+			t.AccountID,
+			t.Date.Format("2006-01-02"),
+			t.Description,
+			t.Amount,
+			t.Category,
+			t.ExternalID,
+			t.Notes,
+			t.Type,
+			t.LocalAmount,
+			t.LocalCurrency,
+		)
+		if err != nil {
+			if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+				return 0, fmt.Errorf("duplicate transaction ID %q already exists", t.ExternalID)
+			}
+			if strings.Contains(err.Error(), "FOREIGN KEY constraint failed") {
+				return 0, fmt.Errorf("account does not exist")
+			}
+			return 0, fmt.Errorf("inserting transaction: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("committing transaction: %w", err)
+	}
+	return len(txns), nil
+}
+
 // MonthSummary returns income and expense totals for the given year/month.
 func MonthSummary(db *sql.DB, year int, month time.Month) (MonthlySummary, error) {
 	start := time.Date(year, month, 1, 0, 0, 0, 0, time.UTC)
