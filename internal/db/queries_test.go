@@ -180,6 +180,97 @@ func TestListAccounts_CorrectFields(t *testing.T) {
 	}
 }
 
+// --- InsertTransaction tests ---
+
+func TestInsertTransaction_Valid(t *testing.T) {
+	db := testDB(t)
+	acctID := insertTestAccount(t, db, "Main", "current")
+	id, err := InsertTransaction(db, acctID, time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC), "Salary", 150000, "income")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if id <= 0 {
+		t.Fatalf("expected positive ID, got %d", id)
+	}
+}
+
+func TestInsertTransaction_EmptyDescriptionAndCategory(t *testing.T) {
+	db := testDB(t)
+	acctID := insertTestAccount(t, db, "Main", "current")
+	_, err := InsertTransaction(db, acctID, time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC), "", 5000, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestInsertTransaction_InvalidAccount(t *testing.T) {
+	db := testDB(t)
+	_, err := InsertTransaction(db, 9999, time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC), "Test", 1000, "")
+	if err == nil {
+		t.Fatal("expected error for non-existent account")
+	}
+}
+
+func TestInsertTransaction_NegativeAmount(t *testing.T) {
+	db := testDB(t)
+	acctID := insertTestAccount(t, db, "Main", "current")
+	id, err := InsertTransaction(db, acctID, time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC), "Rent", -80000, "housing")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if id <= 0 {
+		t.Fatalf("expected positive ID, got %d", id)
+	}
+}
+
+func TestInsertTransaction_StoresDateCorrectly(t *testing.T) {
+	db := testDB(t)
+	acctID := insertTestAccount(t, db, "Main", "current")
+	date := time.Date(2026, 3, 25, 0, 0, 0, 0, time.UTC)
+	InsertTransaction(db, acctID, date, "Test", 1000, "")
+
+	txs, err := RecentTransactions(db, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(txs) != 1 {
+		t.Fatalf("expected 1 transaction, got %d", len(txs))
+	}
+	if txs[0].Date != date {
+		t.Errorf("expected date %v, got %v", date, txs[0].Date)
+	}
+}
+
+// --- DeleteTransaction tests ---
+
+func TestDeleteTransaction_Valid(t *testing.T) {
+	db := testDB(t)
+	acctID := insertTestAccount(t, db, "Main", "current")
+	insertTestTransaction(t, db, acctID, "2026-01-15", "ToDelete", 1000)
+
+	// Get the transaction ID
+	var txID int64
+	db.QueryRow(`SELECT id FROM transactions LIMIT 1`).Scan(&txID)
+
+	if err := DeleteTransaction(db, txID); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify it's gone
+	txs, _ := RecentTransactions(db, 10)
+	if len(txs) != 0 {
+		t.Errorf("expected 0 transactions after delete, got %d", len(txs))
+	}
+}
+
+func TestDeleteTransaction_NotFound(t *testing.T) {
+	db := testDB(t)
+	err := DeleteTransaction(db, 9999)
+	if err == nil {
+		t.Fatal("expected error for non-existent transaction")
+	}
+}
+
 // --- AccountBalances tests ---
 
 func TestAccountBalances_Empty(t *testing.T) {
