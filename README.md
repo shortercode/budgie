@@ -17,7 +17,7 @@ budgie is a terminal UI application for tracking income, expenses, and account b
   - Monthly income vs expenses with a net figure
   - Last 10 transactions with date, account, description, and amount
 - **SQLite database** -- schema for accounts (current, savings, credit, cash) and transactions with automatic migration on first run
-- **UK localisation** -- all currency displayed in GBP (£), dates formatted as DD/MM/YYYY, "checking" account type displayed as "current"
+- **UK localisation** -- all currency displayed in GBP (£), dates formatted as DD/MM/YYYY, account types use British English ("current" not "checking")
 
 ### What doesn't exist yet
 
@@ -62,7 +62,7 @@ The app uses British English and GBP throughout:
 | Currency | £1,200.00 |
 | Negative currency | -£45.00 |
 | Date format | 28/01/2026 |
-| Account type display | "current" (stored as "checking" for DB compatibility) |
+| Account type display | "current" |
 
 ## Project structure
 

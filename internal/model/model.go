@@ -11,7 +11,7 @@ type Account struct {
 type AccountType string
 
 const (
-	AccountTypeChecking AccountType = "checking"
+	AccountTypeCurrent AccountType = "current"
 	AccountTypeSavings  AccountType = "savings"
 	AccountTypeCredit   AccountType = "credit"
 	AccountTypeCash     AccountType = "cash"

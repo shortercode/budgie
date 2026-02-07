@@ -52,11 +52,3 @@ func addThousandsSeparator(n int64) string {
 func formatDate(t time.Time) string {
 	return t.Format("02/01/2006")
 }
-
-// displayAccountType maps the internal account type to a UK-friendly label.
-func displayAccountType(t string) string {
-	if t == "checking" {
-		return "current"
-	}
-	return t
-}
