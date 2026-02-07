@@ -13,7 +13,7 @@ go build ./cmd/budgie    # Build binary to ./budgie
 go run ./cmd/budgie      # Run directly without building
 go fmt ./...             # Format code
 go vet ./...             # Check for issues
-go test ./...            # Run tests (none exist yet)
+go test ./...            # Run tests
 ```
 
 ## Architecture
@@ -34,6 +34,29 @@ The codebase follows the Elm-style Model-View-Update architecture via bubbletea:
 ### Database Schema
 
 Two tables: `accounts` (id, name, type) and `transactions` (id, account_id, date, description, amount, category). Foreign key from transactions to accounts. Amount stored in pence as INTEGER.
+
+### Style & Conventions
+
+#### DB layer (`internal/db/`)
+- All DB functions take `*sql.DB` as the first argument.
+- Always wrap errors with context using `fmt.Errorf("doing thing: %w", err)` — never return bare errors from DB operations.
+- Use `fmt.Errorf` for all error creation, including simple validation messages. Reserve `errors.New` only for package-level sentinel errors (e.g. `ErrAccountHasTransactions`).
+- User-facing error messages should be friendly — detect constraint violations (e.g. `UNIQUE constraint failed`) and return readable messages instead of raw SQLite errors.
+- Pre-release: no migration logic. Schema changes mean deleting and recreating the database.
+
+#### UI layer (`internal/ui/`)
+- Each form/view is a separate file with its own unexported bubbletea model (e.g. `accountFormModel`, `transactionFormModel`).
+- All message types are unexported with a `Msg` suffix: `accountInsertedMsg`, `accountFormCancelledMsg`, `transactionInsertErrMsg`.
+- Form field enums use a short prefix matching the form: `acctFieldName`, `acctFieldType` for account form; `txFieldAccount`, `txFieldDate` for transaction form.
+- Shared styles (`formLabelStyle`, `formActiveLabel`, `formErrorStyle`, `formButtonStyle`, `formActiveButton`) are defined at package level in `account_form.go` without hardcoded widths. Each form sets its own label width explicitly.
+- `ui.go` owns view routing. The top-level `Model.Update` handles cross-cutting messages (insert success, form cancelled) and delegates to per-view update methods.
+- `ctrl+c` quits from any view. `q` only quits from the dashboard (not forms where it could be typed).
+- DB operations from forms are always async via `tea.Cmd`. On success, return to dashboard and reinitialise `summaryModel` to refresh data.
+
+#### Testing (`internal/db/`)
+- Tests use in-memory SQLite (`:memory:?_foreign_keys=on`) via the `testDB(t)` helper.
+- Test helpers (`insertTestAccount`, `insertTestTransaction`) insert data directly via SQL, bypassing the functions under test.
+- Test function names follow `TestFunctionName_Scenario` convention (e.g. `TestInsertAccount_DuplicateName`).
 
 ## Dependencies
 
