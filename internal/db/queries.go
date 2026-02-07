@@ -91,6 +91,25 @@ func DeleteAccount(db *sql.DB, accountID int64) error {
 	return nil
 }
 
+// ListAccounts returns all accounts ordered by name.
+func ListAccounts(db *sql.DB) ([]model.Account, error) {
+	rows, err := db.Query(`SELECT id, name, type FROM accounts ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []model.Account
+	for rows.Next() {
+		var a model.Account
+		if err := rows.Scan(&a.ID, &a.Name, &a.Type); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
 // AccountBalances returns every account with its computed balance.
 func AccountBalances(db *sql.DB) ([]AccountBalance, error) {
 	rows, err := db.Query(`
