@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -60,41 +59,5 @@ func migrate(db *sql.DB) error {
 		CREATE INDEX IF NOT EXISTS idx_transactions_date
 			ON transactions(date);
 	`)
-	if err != nil {
-		return err
-	}
-
-	// Migrate accounts table from old "checking" CHECK constraint to "current".
-	// CREATE TABLE IF NOT EXISTS won't update an existing table's constraints,
-	// so we must detect the old schema and recreate the table.
-	var tableSql string
-	err = db.QueryRow(`SELECT sql FROM sqlite_master WHERE type='table' AND name='accounts'`).Scan(&tableSql)
-	if err != nil {
-		return err
-	}
-	if strings.Contains(tableSql, "'checking'") {
-		_, err = db.Exec(`
-			PRAGMA foreign_keys = OFF;
-
-			CREATE TABLE accounts_new (
-				id   INTEGER PRIMARY KEY AUTOINCREMENT,
-				name TEXT NOT NULL UNIQUE,
-				type TEXT NOT NULL CHECK(type IN ('current','savings','credit','cash'))
-			);
-
-			INSERT INTO accounts_new (id, name, type)
-				SELECT id, name, CASE WHEN type = 'checking' THEN 'current' ELSE type END
-				FROM accounts;
-
-			DROP TABLE accounts;
-			ALTER TABLE accounts_new RENAME TO accounts;
-
-			PRAGMA foreign_keys = ON;
-		`)
-		if err != nil {
-			return fmt.Errorf("migrating accounts table: %w", err)
-		}
-	}
-
-	return nil
+	return err
 }
