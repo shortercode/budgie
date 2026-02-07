@@ -20,13 +20,13 @@ var accountTypes = []model.AccountType{
 	model.AccountTypeCash,
 }
 
-// accountFormField tracks which field is focused.
-type accountFormField int
+// acctFormField tracks which field is focused.
+type acctFormField int
 
 const (
-	fieldName accountFormField = iota
-	fieldType
-	fieldSubmit
+	acctFieldName acctFormField = iota
+	acctFieldType
+	acctFieldSubmit
 )
 
 // accountInsertedMsg is sent when the account was successfully created.
@@ -35,17 +35,15 @@ type accountInsertedMsg struct{}
 // accountInsertErrMsg is sent when the DB insert fails.
 type accountInsertErrMsg struct{ err error }
 
-// AccountFormCancelled is sent when the user presses Esc.
-type AccountFormCancelled struct{}
+// accountFormCancelledMsg is sent when the user presses Esc.
+type accountFormCancelledMsg struct{}
 
 var (
 	formLabelStyle = lipgloss.NewStyle().
-			Bold(true).
-			Width(10)
+			Bold(true)
 
 	formActiveLabel = lipgloss.NewStyle().
 			Bold(true).
-			Width(10).
 			Foreground(lipgloss.Color("12"))
 
 	formErrorStyle = lipgloss.NewStyle().
@@ -66,7 +64,7 @@ type accountFormModel struct {
 	database  *sql.DB
 	nameInput textinput.Model
 	typeIndex int
-	focused   accountFormField
+	focused   acctFormField
 	err       string
 }
 
@@ -79,7 +77,7 @@ func newAccountFormModel(database *sql.DB) accountFormModel {
 	return accountFormModel{
 		database:  database,
 		nameInput: ti,
-		focused:   fieldName,
+		focused:   acctFieldName,
 	}
 }
 
@@ -99,7 +97,7 @@ func (m accountFormModel) Update(msg tea.Msg) (accountFormModel, tea.Cmd) {
 
 		switch msg.String() {
 		case "esc":
-			return m, func() tea.Msg { return AccountFormCancelled{} }
+			return m, func() tea.Msg { return accountFormCancelledMsg{} }
 
 		case "tab", "down":
 			return m.focusNext(), nil
@@ -108,26 +106,26 @@ func (m accountFormModel) Update(msg tea.Msg) (accountFormModel, tea.Cmd) {
 			return m.focusPrev(), nil
 
 		case "enter":
-			if m.focused == fieldSubmit {
+			if m.focused == acctFieldSubmit {
 				return m.submit()
 			}
 			return m.focusNext(), nil
 
 		case "left":
-			if m.focused == fieldType {
+			if m.focused == acctFieldType {
 				m.typeIndex = (m.typeIndex - 1 + len(accountTypes)) % len(accountTypes)
 				return m, nil
 			}
 
 		case "right":
-			if m.focused == fieldType {
+			if m.focused == acctFieldType {
 				m.typeIndex = (m.typeIndex + 1) % len(accountTypes)
 				return m, nil
 			}
 		}
 	}
 
-	if m.focused == fieldName {
+	if m.focused == acctFieldName {
 		var cmd tea.Cmd
 		m.nameInput, cmd = m.nameInput.Update(msg)
 		return m, cmd
@@ -138,14 +136,14 @@ func (m accountFormModel) Update(msg tea.Msg) (accountFormModel, tea.Cmd) {
 
 func (m accountFormModel) focusNext() accountFormModel {
 	switch m.focused {
-	case fieldName:
-		m.focused = fieldType
+	case acctFieldName:
+		m.focused = acctFieldType
 		m.nameInput.Blur()
-	case fieldType:
-		m.focused = fieldSubmit
-	case fieldSubmit:
+	case acctFieldType:
+		m.focused = acctFieldSubmit
+	case acctFieldSubmit:
 		// wrap around
-		m.focused = fieldName
+		m.focused = acctFieldName
 		m.nameInput.Focus()
 	}
 	return m
@@ -153,15 +151,15 @@ func (m accountFormModel) focusNext() accountFormModel {
 
 func (m accountFormModel) focusPrev() accountFormModel {
 	switch m.focused {
-	case fieldName:
+	case acctFieldName:
 		// wrap around
-		m.focused = fieldSubmit
+		m.focused = acctFieldSubmit
 		m.nameInput.Blur()
-	case fieldType:
-		m.focused = fieldName
+	case acctFieldType:
+		m.focused = acctFieldName
 		m.nameInput.Focus()
-	case fieldSubmit:
-		m.focused = fieldType
+	case acctFieldSubmit:
+		m.focused = acctFieldType
 	}
 	return m
 }
@@ -190,17 +188,19 @@ func (m accountFormModel) View() string {
 	b.WriteString(sectionTitle.Render("Add Account"))
 	b.WriteString("\n\n")
 
+	labelW := 10
+
 	// Name field
-	label := formLabelStyle
-	if m.focused == fieldName {
-		label = formActiveLabel
+	label := formLabelStyle.Width(labelW)
+	if m.focused == acctFieldName {
+		label = formActiveLabel.Width(labelW)
 	}
 	b.WriteString(fmt.Sprintf("  %s %s\n", label.Render("Name:"), m.nameInput.View()))
 
 	// Type field
-	label = formLabelStyle
-	if m.focused == fieldType {
-		label = formActiveLabel
+	label = formLabelStyle.Width(labelW)
+	if m.focused == acctFieldType {
+		label = formActiveLabel.Width(labelW)
 	}
 	typeStr := m.renderTypeSelector()
 	b.WriteString(fmt.Sprintf("  %s %s\n", label.Render("Type:"), typeStr))
@@ -212,7 +212,7 @@ func (m accountFormModel) View() string {
 
 	// Submit button
 	b.WriteString("\n")
-	if m.focused == fieldSubmit {
+	if m.focused == acctFieldSubmit {
 		b.WriteString(fmt.Sprintf("  %s", formActiveButton.Render("Create Account")))
 	} else {
 		b.WriteString(fmt.Sprintf("  %s", formButtonStyle.Render("Create Account")))
@@ -231,7 +231,7 @@ func (m accountFormModel) renderTypeSelector() string {
 	for i, t := range accountTypes {
 		s := string(t)
 		if i == m.typeIndex {
-			if m.focused == fieldType {
+			if m.focused == acctFieldType {
 				s = formActiveButton.Render(s)
 			} else {
 				s = lipgloss.NewStyle().Bold(true).Render("[" + s + "]")

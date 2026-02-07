@@ -45,7 +45,7 @@ var validAccountTypes = map[model.AccountType]bool{
 func InsertAccount(db *sql.DB, name string, accountType model.AccountType) (int64, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return 0, errors.New("account name must not be empty")
+		return 0, fmt.Errorf("account name must not be empty")
 	}
 	if !validAccountTypes[accountType] {
 		return 0, fmt.Errorf("invalid account type: %q", accountType)
@@ -98,7 +98,7 @@ func DeleteAccount(db *sql.DB, accountID int64) error {
 func ListAccounts(db *sql.DB) ([]model.Account, error) {
 	rows, err := db.Query(`SELECT id, name, type FROM accounts ORDER BY name`)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("listing accounts: %w", err)
 	}
 	defer rows.Close()
 
@@ -106,7 +106,7 @@ func ListAccounts(db *sql.DB) ([]model.Account, error) {
 	for rows.Next() {
 		var a model.Account
 		if err := rows.Scan(&a.ID, &a.Name, &a.Type); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("scanning account: %w", err)
 		}
 		out = append(out, a)
 	}
@@ -121,7 +121,7 @@ func InsertTransaction(db *sql.DB, accountID int64, date time.Time, description 
 	)
 	if err != nil {
 		if strings.Contains(err.Error(), "FOREIGN KEY constraint failed") {
-			return 0, errors.New("account does not exist")
+			return 0, fmt.Errorf("account does not exist")
 		}
 		return 0, fmt.Errorf("inserting transaction: %w", err)
 	}
@@ -154,7 +154,7 @@ func AccountBalances(db *sql.DB) ([]AccountBalance, error) {
 		ORDER BY a.name
 	`)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("querying account balances: %w", err)
 	}
 	defer rows.Close()
 
@@ -162,7 +162,7 @@ func AccountBalances(db *sql.DB) ([]AccountBalance, error) {
 	for rows.Next() {
 		var ab AccountBalance
 		if err := rows.Scan(&ab.ID, &ab.Name, &ab.Type, &ab.Balance); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("scanning account balance: %w", err)
 		}
 		out = append(out, ab)
 	}
@@ -179,7 +179,7 @@ func RecentTransactions(db *sql.DB, limit int) ([]RecentTx, error) {
 		LIMIT ?
 	`, limit)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("querying recent transactions: %w", err)
 	}
 	defer rows.Close()
 
@@ -188,11 +188,11 @@ func RecentTransactions(db *sql.DB, limit int) ([]RecentTx, error) {
 		var tx RecentTx
 		var dateStr string
 		if err := rows.Scan(&dateStr, &tx.Account, &tx.Description, &tx.Amount); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("scanning transaction: %w", err)
 		}
 		tx.Date, err = time.Parse("2006-01-02", dateStr)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("parsing transaction date: %w", err)
 		}
 		out = append(out, tx)
 	}
@@ -213,6 +213,9 @@ func MonthSummary(db *sql.DB, year int, month time.Month) (MonthlySummary, error
 		FROM transactions
 		WHERE date >= ? AND date < ?
 	`, start.Format("2006-01-02"), end.Format("2006-01-02")).Scan(&ms.Income, &ms.Expenses)
+	if err != nil {
+		return ms, fmt.Errorf("querying month summary: %w", err)
+	}
 
-	return ms, err
+	return ms, nil
 }
