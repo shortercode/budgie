@@ -1,9 +1,11 @@
 package ui
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 
+	"budgie/internal/db"
 	"budgie/internal/model"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -27,11 +29,11 @@ const (
 	fieldSubmit
 )
 
-// AccountFormResult is sent when the form is submitted successfully.
-type AccountFormResult struct {
-	Name        string
-	AccountType model.AccountType
-}
+// accountInsertedMsg is sent when the account was successfully created.
+type accountInsertedMsg struct{}
+
+// accountInsertErrMsg is sent when the DB insert fails.
+type accountInsertErrMsg struct{ err error }
 
 // AccountFormCancelled is sent when the user presses Esc.
 type AccountFormCancelled struct{}
@@ -61,19 +63,21 @@ var (
 
 // accountFormModel is the bubbletea model for the add-account form.
 type accountFormModel struct {
+	database  *sql.DB
 	nameInput textinput.Model
 	typeIndex int
 	focused   accountFormField
 	err       string
 }
 
-func newAccountFormModel() accountFormModel {
+func newAccountFormModel(database *sql.DB) accountFormModel {
 	ti := textinput.New()
 	ti.Placeholder = "Account name"
 	ti.CharLimit = 50
 	ti.Focus()
 
 	return accountFormModel{
+		database:  database,
 		nameInput: ti,
 		focused:   fieldName,
 	}
@@ -85,6 +89,10 @@ func (m accountFormModel) Init() tea.Cmd {
 
 func (m accountFormModel) Update(msg tea.Msg) (accountFormModel, tea.Cmd) {
 	switch msg := msg.(type) {
+	case accountInsertErrMsg:
+		m.err = msg.err.Error()
+		return m, nil
+
 	case tea.KeyMsg:
 		// Clear error on any keypress.
 		m.err = ""
@@ -164,11 +172,16 @@ func (m accountFormModel) submit() (accountFormModel, tea.Cmd) {
 		m.err = "Account name is required"
 		return m, nil
 	}
-	result := AccountFormResult{
-		Name:        name,
-		AccountType: accountTypes[m.typeIndex],
+	acctType := accountTypes[m.typeIndex]
+	database := m.database
+	cmd := func() tea.Msg {
+		_, err := db.InsertAccount(database, name, acctType)
+		if err != nil {
+			return accountInsertErrMsg{err: err}
+		}
+		return accountInsertedMsg{}
 	}
-	return m, func() tea.Msg { return result }
+	return m, cmd
 }
 
 func (m accountFormModel) View() string {
