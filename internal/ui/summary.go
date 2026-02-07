@@ -143,7 +143,7 @@ func (m summaryModel) renderAccounts() string {
 		if len(a.Name) > nameW {
 			nameW = len(a.Name)
 		}
-		dt := displayAccountType(a.Type)
+		dt := a.Type
 		if len(dt) > typeW {
 			typeW = len(dt)
 		}
@@ -175,7 +175,7 @@ func (m summaryModel) renderAccounts() string {
 	b.WriteString("\n")
 
 	for _, a := range m.data.accounts {
-		row := fmt.Sprintf(fmtRow, a.Name, displayAccountType(a.Type), formatPence(a.Balance))
+		row := fmt.Sprintf(fmtRow, a.Name, a.Type, formatPence(a.Balance))
 		b.WriteString(row)
 		b.WriteString("\n")
 	}

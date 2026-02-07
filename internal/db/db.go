@@ -42,7 +42,7 @@ func migrate(db *sql.DB) error {
 		CREATE TABLE IF NOT EXISTS accounts (
 			id   INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT NOT NULL UNIQUE,
-			type TEXT NOT NULL CHECK(type IN ('checking','savings','credit','cash'))
+			type TEXT NOT NULL CHECK(type IN ('current','savings','credit','cash'))
 		);
 
 		CREATE TABLE IF NOT EXISTS transactions (
@@ -58,6 +58,8 @@ func migrate(db *sql.DB) error {
 			ON transactions(account_id);
 		CREATE INDEX IF NOT EXISTS idx_transactions_date
 			ON transactions(date);
+
+		UPDATE accounts SET type = 'current' WHERE type = 'checking';
 	`)
 	return err
 }
