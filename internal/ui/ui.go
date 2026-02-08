@@ -14,6 +14,7 @@ const (
 	viewAccountForm
 	viewTransactionForm
 	viewTransactionList
+	viewImportForm
 )
 
 var (
@@ -34,6 +35,7 @@ type Model struct {
 	accountForm     accountFormModel
 	transactionForm transactionFormModel
 	transactionList transactionListModel
+	importForm      importFormModel
 }
 
 func New(db *sql.DB) Model {
@@ -79,7 +81,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.summary = newSummaryModel(m.db)
 		return m, m.summary.Init()
 
-	case accountFormCancelledMsg, transactionFormCancelledMsg:
+	case importDoneMsg:
+		m.active = viewSummary
+		m.summary = newSummaryModel(m.db)
+		return m, m.summary.Init()
+
+	case accountFormCancelledMsg, transactionFormCancelledMsg, importFormCancelledMsg:
 		m.active = viewSummary
 		return m, nil
 	}
@@ -93,6 +100,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateTransactionForm(msg)
 	case viewTransactionList:
 		return m.updateTransactionList(msg)
+	case viewImportForm:
+		return m.updateImportForm(msg)
 	}
 
 	return m, nil
@@ -115,6 +124,10 @@ func (m Model) updateSummary(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.active = viewTransactionList
 			m.transactionList = newTransactionListModel(m.db)
 			return m, m.transactionList.Init()
+		case "i":
+			m.active = viewImportForm
+			m.importForm = newImportFormModel(m.db)
+			return m, m.importForm.Init()
 		}
 	}
 
@@ -141,6 +154,12 @@ func (m Model) updateTransactionList(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m Model) updateImportForm(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	m.importForm, cmd = m.importForm.Update(msg)
+	return m, cmd
+}
+
 func (m Model) View() string {
 	title := titleStyle.Render("budgie")
 
@@ -150,7 +169,7 @@ func (m Model) View() string {
 	switch m.active {
 	case viewSummary:
 		content = m.summary.View()
-		help = helpStyle.Render("a: add account  t: add transaction  l: transactions  q: quit")
+		help = helpStyle.Render("a: add account  t: add transaction  l: transactions  i: import  q: quit")
 	case viewAccountForm:
 		content = m.accountForm.View()
 		help = ""
@@ -160,6 +179,9 @@ func (m Model) View() string {
 	case viewTransactionList:
 		content = m.transactionList.View()
 		help = helpStyle.Render("e/enter: edit  esc: back  ↑/↓: scroll  ←/→: page")
+	case viewImportForm:
+		content = m.importForm.View()
+		help = ""
 	}
 
 	return title + "\n\n" + content + "\n\n" + help + "\n"

@@ -48,6 +48,18 @@ func insertTestTransaction(t *testing.T, db *sql.DB, accountID int64, date strin
 	}
 }
 
+// insertTestTransactionWithExtID inserts a transaction with an external_id directly via SQL.
+func insertTestTransactionWithExtID(t *testing.T, db *sql.DB, accountID int64, date string, desc string, amount int64, extID string) {
+	t.Helper()
+	_, err := db.Exec(
+		`INSERT INTO transactions (account_id, date, description, amount, category, external_id) VALUES (?, ?, ?, ?, '', ?)`,
+		accountID, date, desc, amount, extID,
+	)
+	if err != nil {
+		t.Fatalf("inserting test transaction with ext ID: %v", err)
+	}
+}
+
 // --- InsertAccount tests ---
 
 func TestInsertAccount_Valid(t *testing.T) {
@@ -616,5 +628,132 @@ func TestMonthSummary_OnlyIncludesSpecifiedMonth(t *testing.T) {
 	}
 	if ms.Income != 300000 {
 		t.Errorf("expected income 300000 (Feb only), got %d", ms.Income)
+	}
+}
+
+// --- ExistingExternalIDs tests ---
+
+func TestExistingExternalIDs_Empty(t *testing.T) {
+	db := testDB(t)
+	ids, err := ExistingExternalIDs(db)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(ids) != 0 {
+		t.Fatalf("expected 0 IDs, got %d", len(ids))
+	}
+}
+
+func TestExistingExternalIDs_IgnoresNullExternalIDs(t *testing.T) {
+	db := testDB(t)
+	acctID := insertTestAccount(t, db, "Main", "current")
+	// Insert a normal transaction (NULL external_id)
+	insertTestTransaction(t, db, acctID, "2026-01-15", "Salary", 150000)
+	// Insert one with external_id
+	insertTestTransactionWithExtID(t, db, acctID, "2026-01-16", "Coffee", -350, "tx_abc")
+
+	ids, err := ExistingExternalIDs(db)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(ids) != 1 {
+		t.Fatalf("expected 1 ID, got %d", len(ids))
+	}
+	if !ids["tx_abc"] {
+		t.Errorf("expected 'tx_abc' in set")
+	}
+}
+
+// --- BulkInsertTransactions tests ---
+
+func TestBulkInsertTransactions_Valid(t *testing.T) {
+	db := testDB(t)
+	acctID := insertTestAccount(t, db, "Main", "current")
+
+	txns := []ImportTransaction{
+		{
+			AccountID:   acctID,
+			Date:        time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
+			Description: "Tesco",
+			Amount:      -1550,
+			Category:    "groceries",
+			ExternalID:  "tx_001",
+			Notes:       "weekly shop",
+			Type:        "card_payment",
+		},
+		{
+			AccountID:   acctID,
+			Date:        time.Date(2026, 1, 11, 0, 0, 0, 0, time.UTC),
+			Description: "Cafe",
+			Amount:      -500,
+			Category:    "eating_out",
+			ExternalID:  "tx_002",
+			Type:        "card_payment",
+			LocalAmount: "-6.25 EUR",
+			Emoji:       "☕",
+			SourceDesc:  "cafe payment",
+		},
+		{
+			AccountID:   acctID,
+			Date:        time.Date(2026, 1, 12, 0, 0, 0, 0, time.UTC),
+			Description: "Salary",
+			Amount:      300000,
+			Category:    "income",
+			ExternalID:  "tx_003",
+			Type:        "deposit",
+		},
+	}
+
+	count, err := BulkInsertTransactions(db, txns)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if count != 3 {
+		t.Fatalf("expected 3 inserted, got %d", count)
+	}
+
+	// Verify all rows exist
+	all, total, err := AllTransactions(db, 0, 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if total != 3 {
+		t.Fatalf("expected 3 total, got %d", total)
+	}
+	// Verify the first row (most recent by date)
+	if all[0].Description != "Salary" {
+		t.Errorf("expected 'Salary', got %q", all[0].Description)
+	}
+}
+
+func TestBulkInsertTransactions_EmptySlice(t *testing.T) {
+	db := testDB(t)
+	count, err := BulkInsertTransactions(db, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected 0 inserted, got %d", count)
+	}
+}
+
+func TestBulkInsertTransactions_DuplicateExternalID(t *testing.T) {
+	db := testDB(t)
+	acctID := insertTestAccount(t, db, "Main", "current")
+	insertTestTransactionWithExtID(t, db, acctID, "2026-01-10", "Existing", -1000, "tx_dup")
+
+	txns := []ImportTransaction{
+		{
+			AccountID:   acctID,
+			Date:        time.Date(2026, 1, 11, 0, 0, 0, 0, time.UTC),
+			Description: "Duplicate",
+			Amount:      -500,
+			ExternalID:  "tx_dup",
+		},
+	}
+
+	_, err := BulkInsertTransactions(db, txns)
+	if err == nil {
+		t.Fatal("expected error for duplicate external ID")
 	}
 }

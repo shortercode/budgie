@@ -46,18 +46,26 @@ func migrate(db *sql.DB) error {
 		);
 
 		CREATE TABLE IF NOT EXISTS transactions (
-			id          INTEGER PRIMARY KEY AUTOINCREMENT,
-			account_id  INTEGER NOT NULL REFERENCES accounts(id),
-			date        TEXT    NOT NULL,
-			description TEXT    NOT NULL DEFAULT '',
-			amount      INTEGER NOT NULL,
-			category    TEXT    NOT NULL DEFAULT ''
+			id             INTEGER PRIMARY KEY AUTOINCREMENT,
+			account_id     INTEGER NOT NULL REFERENCES accounts(id),
+			date           TEXT    NOT NULL,
+			description    TEXT    NOT NULL DEFAULT '',
+			amount         INTEGER NOT NULL,
+			category       TEXT    NOT NULL DEFAULT '',
+			external_id    TEXT,
+			notes          TEXT    NOT NULL DEFAULT '',
+			type           TEXT    NOT NULL DEFAULT '',
+			local_amount   TEXT    NOT NULL DEFAULT '',
+			emoji          TEXT    NOT NULL DEFAULT '',
+			source_desc    TEXT    NOT NULL DEFAULT ''
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_transactions_account
 			ON transactions(account_id);
 		CREATE INDEX IF NOT EXISTS idx_transactions_date
 			ON transactions(date);
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_external_id
+			ON transactions(external_id) WHERE external_id IS NOT NULL;
 	`)
 	return err
 }
