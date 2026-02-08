@@ -682,15 +682,16 @@ func TestBulkInsertTransactions_Valid(t *testing.T) {
 			Type:        "card_payment",
 		},
 		{
-			AccountID:     acctID,
-			Date:          time.Date(2026, 1, 11, 0, 0, 0, 0, time.UTC),
-			Description:   "Cafe",
-			Amount:        -500,
-			Category:      "eating_out",
-			ExternalID:    "tx_002",
-			Type:          "card_payment",
-			LocalAmount:   ptrInt64(-625),
-			LocalCurrency: "EUR",
+			AccountID:   acctID,
+			Date:        time.Date(2026, 1, 11, 0, 0, 0, 0, time.UTC),
+			Description: "Cafe",
+			Amount:      -500,
+			Category:    "eating_out",
+			ExternalID:  "tx_002",
+			Type:        "card_payment",
+			LocalAmount: "-6.25 EUR",
+			Emoji:       "☕",
+			SourceDesc:  "cafe payment",
 		},
 		{
 			AccountID:   acctID,
@@ -755,8 +756,4 @@ func TestBulkInsertTransactions_DuplicateExternalID(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for duplicate external ID")
 	}
-}
-
-func ptrInt64(v int64) *int64 {
-	return &v
 }

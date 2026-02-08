@@ -12,21 +12,24 @@ import (
 
 // MonzoTransaction represents a single parsed row from a Monzo CSV export.
 type MonzoTransaction struct {
-	ExternalID    string
-	Date          time.Time
-	Description   string // from Monzo "Name" column
-	Amount        int64  // pence, signed
-	Category      string
-	Type          string // e.g. "card_payment"
-	Notes         string
-	LocalAmount   *int64 // nil if domestic/GBP
-	LocalCurrency string // "" if GBP
+	ExternalID  string
+	Date        time.Time
+	Description string // from Monzo "Name" column
+	Amount      int64  // pence, signed
+	Category    string
+	Type        string // e.g. "card_payment"
+	Notes       string
+	LocalAmount string // e.g. "-6.25 EUR" or "" for domestic
+	Emoji       string
+	SourceDesc  string // Monzo "Description" column
 }
 
 var requiredColumns = []string{
 	"Transaction ID",
 	"Date",
 	"Name",
+	"Emoji",
+	"Description",
 	"Amount",
 	"Category",
 	"Type",
@@ -99,6 +102,8 @@ func ParseMonzoCSV(path string) ([]MonzoTransaction, error) {
 			Category:    row[colIndex["Category"]],
 			Type:        row[colIndex["Type"]],
 			Notes:       row[colIndex["Notes and #tags"]],
+			Emoji:       row[colIndex["Emoji"]],
+			SourceDesc:  row[colIndex["Description"]],
 		}
 
 		currency := row[colIndex["Currency"]]
@@ -107,9 +112,7 @@ func ParseMonzoCSV(path string) ([]MonzoTransaction, error) {
 			localAmountStr := row[colIndex["Local amount"]]
 			localFloat, err := strconv.ParseFloat(localAmountStr, 64)
 			if err == nil {
-				localPence := int64(math.Round(localFloat * 100))
-				tx.LocalAmount = &localPence
-				tx.LocalCurrency = localCurrency
+				tx.LocalAmount = fmt.Sprintf("%.2f %s", localFloat, localCurrency)
 			}
 		}
 

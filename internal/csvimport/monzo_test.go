@@ -54,11 +54,14 @@ func TestParseMonzoCSV_ValidFile(t *testing.T) {
 	if tx.Notes != "weekly shop" {
 		t.Errorf("expected notes 'weekly shop', got %q", tx.Notes)
 	}
-	if tx.LocalAmount != nil {
-		t.Errorf("expected nil LocalAmount for GBP transaction, got %d", *tx.LocalAmount)
+	if tx.LocalAmount != "" {
+		t.Errorf("expected empty LocalAmount for GBP transaction, got %q", tx.LocalAmount)
 	}
-	if tx.LocalCurrency != "" {
-		t.Errorf("expected empty LocalCurrency for GBP transaction, got %q", tx.LocalCurrency)
+	if tx.Emoji != "" {
+		t.Errorf("expected empty Emoji, got %q", tx.Emoji)
+	}
+	if tx.SourceDesc != "" {
+		t.Errorf("expected empty SourceDesc, got %q", tx.SourceDesc)
 	}
 }
 
@@ -113,7 +116,7 @@ func TestParseMonzoCSV_InvalidAmount(t *testing.T) {
 
 func TestParseMonzoCSV_ForeignCurrency(t *testing.T) {
 	csv := validHeader +
-		"tx_002,07/02/2026,14:30:00,card_payment,Cafe,,eating_out,-5.00,GBP,-6.25,EUR,,,,,,-5.00,\n"
+		"tx_002,07/02/2026,14:30:00,card_payment,Cafe,☕,eating_out,-5.00,GBP,-6.25,EUR,,,,cafe payment,,-5.00,\n"
 
 	path := writeTempCSV(t, csv)
 	txns, err := ParseMonzoCSV(path)
@@ -125,14 +128,14 @@ func TestParseMonzoCSV_ForeignCurrency(t *testing.T) {
 	}
 
 	tx := txns[0]
-	if tx.LocalAmount == nil {
-		t.Fatal("expected non-nil LocalAmount for foreign currency transaction")
+	if tx.LocalAmount != "-6.25 EUR" {
+		t.Errorf("expected local amount %q, got %q", "-6.25 EUR", tx.LocalAmount)
 	}
-	if *tx.LocalAmount != -625 {
-		t.Errorf("expected local amount -625, got %d", *tx.LocalAmount)
+	if tx.Emoji != "☕" {
+		t.Errorf("expected emoji '☕', got %q", tx.Emoji)
 	}
-	if tx.LocalCurrency != "EUR" {
-		t.Errorf("expected local currency 'EUR', got %q", tx.LocalCurrency)
+	if tx.SourceDesc != "cafe payment" {
+		t.Errorf("expected source desc 'cafe payment', got %q", tx.SourceDesc)
 	}
 }
 

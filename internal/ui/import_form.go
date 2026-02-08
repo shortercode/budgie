@@ -131,16 +131,17 @@ func (m importFormModel) Update(msg tea.Msg) (importFormModel, tea.Cmd) {
 				continue
 			}
 			toImport = append(toImport, db.ImportTransaction{
-				AccountID:     accountID,
-				Date:          tx.Date,
-				Description:   tx.Description,
-				Amount:        tx.Amount,
-				Category:      tx.Category,
-				ExternalID:    tx.ExternalID,
-				Notes:         tx.Notes,
-				Type:          tx.Type,
-				LocalAmount:   tx.LocalAmount,
-				LocalCurrency: tx.LocalCurrency,
+				AccountID:   accountID,
+				Date:        tx.Date,
+				Description: tx.Description,
+				Amount:      tx.Amount,
+				Category:    tx.Category,
+				ExternalID:  tx.ExternalID,
+				Notes:       tx.Notes,
+				Type:        tx.Type,
+				LocalAmount: tx.LocalAmount,
+				Emoji:       tx.Emoji,
+				SourceDesc:  tx.SourceDesc,
 			})
 		}
 		m.toImport = toImport

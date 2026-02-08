@@ -274,16 +274,17 @@ func AllTransactions(db *sql.DB, offset, limit int) ([]TransactionRow, int, erro
 
 // ImportTransaction holds the data needed to bulk-insert an imported transaction.
 type ImportTransaction struct {
-	AccountID     int64
-	Date          time.Time
-	Description   string
-	Amount        int64
-	Category      string
-	ExternalID    string
-	Notes         string
-	Type          string
-	LocalAmount   *int64
-	LocalCurrency string
+	AccountID   int64
+	Date        time.Time
+	Description string
+	Amount      int64
+	Category    string
+	ExternalID  string
+	Notes       string
+	Type        string
+	LocalAmount string
+	Emoji       string
+	SourceDesc  string
 }
 
 // ExistingExternalIDs returns a set of all non-NULL external_id values.
@@ -319,8 +320,8 @@ func BulkInsertTransactions(db *sql.DB, txns []ImportTransaction) (int, error) {
 	defer tx.Rollback()
 
 	stmt, err := tx.Prepare(`
-		INSERT INTO transactions (account_id, date, description, amount, category, external_id, notes, type, local_amount, local_currency)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO transactions (account_id, date, description, amount, category, external_id, notes, type, local_amount, emoji, source_desc)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return 0, fmt.Errorf("preparing insert: %w", err)
@@ -338,7 +339,8 @@ func BulkInsertTransactions(db *sql.DB, txns []ImportTransaction) (int, error) {
 			t.Notes,
 			t.Type,
 			t.LocalAmount,
-			t.LocalCurrency,
+			t.Emoji,
+			t.SourceDesc,
 		)
 		if err != nil {
 			if strings.Contains(err.Error(), "UNIQUE constraint failed") {

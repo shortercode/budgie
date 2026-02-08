@@ -55,8 +55,9 @@ func migrate(db *sql.DB) error {
 			external_id    TEXT,
 			notes          TEXT    NOT NULL DEFAULT '',
 			type           TEXT    NOT NULL DEFAULT '',
-			local_amount   INTEGER,
-			local_currency TEXT    NOT NULL DEFAULT ''
+			local_amount   TEXT    NOT NULL DEFAULT '',
+			emoji          TEXT    NOT NULL DEFAULT '',
+			source_desc    TEXT    NOT NULL DEFAULT ''
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_transactions_account
