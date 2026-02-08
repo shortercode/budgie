@@ -552,3 +552,98 @@ func TestMonthSummary_OnlyIncludesSpecifiedMonth(t *testing.T) {
 		t.Errorf("expected income 300000 (Feb only), got %d", ms.Income)
 	}
 }
+
+// --- MonthlyFinancesByMonth tests ---
+
+func TestMonthlyFinancesByMonth_Empty(t *testing.T) {
+	db := testDB(t)
+	result, err := MonthlyFinancesByMonth(db)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result) != 0 {
+		t.Fatalf("expected 0 entries, got %d", len(result))
+	}
+}
+
+func TestMonthlyFinancesByMonth_SingleMonth(t *testing.T) {
+	db := testDB(t)
+	id := insertTestAccount(t, db, "Main", "current")
+	insertTestTransaction(t, db, id, "2026-03-05", "Salary", 300000)
+	insertTestTransaction(t, db, id, "2026-03-10", "Rent", -100000)
+	insertTestTransaction(t, db, id, "2026-03-15", "Food", -25000)
+
+	result, err := MonthlyFinancesByMonth(db)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(result))
+	}
+	mf := result[0]
+	if mf.Year != 2026 || mf.Month != time.March {
+		t.Errorf("expected 2026/March, got %d/%v", mf.Year, mf.Month)
+	}
+	if mf.Income != 300000 {
+		t.Errorf("expected income 300000, got %d", mf.Income)
+	}
+	if mf.Expenses != -125000 {
+		t.Errorf("expected expenses -125000, got %d", mf.Expenses)
+	}
+	if mf.NetWorth != 175000 {
+		t.Errorf("expected net worth 175000, got %d", mf.NetWorth)
+	}
+}
+
+func TestMonthlyFinancesByMonth_Cumulative(t *testing.T) {
+	db := testDB(t)
+	id := insertTestAccount(t, db, "Main", "current")
+	insertTestTransaction(t, db, id, "2026-01-10", "Salary", 200000)
+	insertTestTransaction(t, db, id, "2026-01-15", "Rent", -80000)
+	insertTestTransaction(t, db, id, "2026-02-10", "Salary", 200000)
+	insertTestTransaction(t, db, id, "2026-02-15", "Rent", -80000)
+	insertTestTransaction(t, db, id, "2026-02-20", "Food", -30000)
+
+	result, err := MonthlyFinancesByMonth(db)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(result))
+	}
+	// Jan: income 200000, expenses -80000, net worth 120000
+	if result[0].NetWorth != 120000 {
+		t.Errorf("expected Jan net worth 120000, got %d", result[0].NetWorth)
+	}
+	// Feb: income 200000, expenses -110000, cumulative net worth 120000+90000=210000
+	if result[1].NetWorth != 210000 {
+		t.Errorf("expected Feb net worth 210000, got %d", result[1].NetWorth)
+	}
+}
+
+func TestMonthlyFinancesByMonth_MultipleAccounts(t *testing.T) {
+	db := testDB(t)
+	id1 := insertTestAccount(t, db, "Current", "current")
+	id2 := insertTestAccount(t, db, "Savings", "savings")
+	insertTestTransaction(t, db, id1, "2026-04-10", "Salary", 300000)
+	insertTestTransaction(t, db, id1, "2026-04-15", "Rent", -100000)
+	insertTestTransaction(t, db, id2, "2026-04-20", "Interest", 5000)
+
+	result, err := MonthlyFinancesByMonth(db)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(result))
+	}
+	mf := result[0]
+	if mf.Income != 305000 {
+		t.Errorf("expected income 305000 (aggregated), got %d", mf.Income)
+	}
+	if mf.Expenses != -100000 {
+		t.Errorf("expected expenses -100000, got %d", mf.Expenses)
+	}
+	if mf.NetWorth != 205000 {
+		t.Errorf("expected net worth 205000, got %d", mf.NetWorth)
+	}
+}

@@ -249,6 +249,56 @@ func AllTransactions(db *sql.DB, offset, limit int) ([]TransactionRow, int, erro
 	return out, total, nil
 }
 
+// MonthlyFinances holds income, expenses, and cumulative net worth for a month.
+type MonthlyFinances struct {
+	Year     int
+	Month    time.Month
+	Income   int64 // positive, pence
+	Expenses int64 // negative, pence
+	NetWorth int64 // cumulative, pence
+}
+
+// MonthlyFinancesByMonth returns monthly income, expenses, and cumulative net
+// worth for every month that has transactions, in chronological order.
+func MonthlyFinancesByMonth(db *sql.DB) ([]MonthlyFinances, error) {
+	rows, err := db.Query(`
+		SELECT
+			strftime('%Y', date) AS yr,
+			strftime('%m', date) AS mo,
+			COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN amount < 0 THEN amount ELSE 0 END), 0)
+		FROM transactions
+		GROUP BY yr, mo
+		ORDER BY yr, mo
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("querying monthly finances: %w", err)
+	}
+	defer rows.Close()
+
+	var out []MonthlyFinances
+	var cumulative int64
+	for rows.Next() {
+		var mf MonthlyFinances
+		var yrStr, moStr string
+		if err := rows.Scan(&yrStr, &moStr, &mf.Income, &mf.Expenses); err != nil {
+			return nil, fmt.Errorf("scanning monthly finances: %w", err)
+		}
+
+		var yr, mo int
+		fmt.Sscanf(yrStr, "%d", &yr)
+		fmt.Sscanf(moStr, "%d", &mo)
+		mf.Year = yr
+		mf.Month = time.Month(mo)
+
+		cumulative += mf.Income + mf.Expenses
+		mf.NetWorth = cumulative
+
+		out = append(out, mf)
+	}
+	return out, rows.Err()
+}
+
 // MonthSummary returns income and expense totals for the given year/month.
 func MonthSummary(db *sql.DB, year int, month time.Month) (MonthlySummary, error) {
 	start := time.Date(year, month, 1, 0, 0, 0, 0, time.UTC)
